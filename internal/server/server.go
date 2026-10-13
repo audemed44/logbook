@@ -11,14 +11,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/audemed44/logbook/internal/collect"
+	"github.com/audemed44/logbook/internal/logging"
 	"github.com/audemed44/logbook/internal/store"
+	"github.com/audemed44/logbook/internal/watch"
 )
 
 type Options struct {
-	Store    *store.Store
-	Token    string
-	Web      fs.FS
-	FoyerURL string // Foyer, the homelab's start page, linked from the header
+	Store     *store.Store
+	Collector *collect.Collector // nil in tests that don't collect
+	Watcher   *watch.Watcher
+	Limits    Limits
+	Token     string
+	Web       fs.FS
+	FoyerURL  string // Foyer, the homelab's start page, linked from the header
 }
 
 type Server struct {
@@ -32,10 +38,11 @@ func New(o Options) *Server {
 
 func (s *Server) Handler() http.Handler {
 	api := http.NewServeMux()
-	api.HandleFunc("GET /api/items", s.listItems)
-	api.HandleFunc("POST /api/items", s.saveItem)
-	api.HandleFunc("PUT /api/items/{id}", s.saveItem)
-	api.HandleFunc("DELETE /api/items/{id}", s.deleteItem)
+	api.HandleFunc("GET /api/lines", s.listLines)
+	api.HandleFunc("GET /api/lines/{id}/around", s.around)
+	api.HandleFunc("GET /api/tail", s.tail)
+	api.HandleFunc("GET /api/sources", s.listSources)
+	api.HandleFunc("GET /api/overview", s.overview)
 
 	api.HandleFunc("GET /api/foyer/widget", s.foyerWidget)
 
@@ -49,7 +56,7 @@ func (s *Server) Handler() http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.Handle("/", s.spa())
-	return securityHeaders(sameOrigin(mux))
+	return logging.Requests(securityHeaders(sameOrigin(mux)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -66,12 +73,12 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // storeError answers 404 for missing things and 500 otherwise.
-func storeError(w http.ResponseWriter, err error) {
+func storeError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
-	slog.Error("request failed", "err", err)
+	slog.ErrorContext(r.Context(), "request failed", "err", err)
 	writeError(w, http.StatusInternalServerError, err.Error())
 }
 

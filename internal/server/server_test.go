@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -43,10 +42,10 @@ func do(h http.Handler, method, path, body string, auth bool, headers ...string)
 
 func TestAuth(t *testing.T) {
 	h := newServer(t)
-	if rec := do(h, "GET", "/api/items", "", false); rec.Code != http.StatusUnauthorized {
+	if rec := do(h, "GET", "/api/sources", "", false); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("without a token: %d", rec.Code)
 	}
-	if rec := do(h, "GET", "/api/items", "", true); rec.Code != http.StatusOK {
+	if rec := do(h, "GET", "/api/sources", "", true); rec.Code != http.StatusOK {
 		t.Fatalf("with the token: %d", rec.Code)
 	}
 
@@ -58,53 +57,16 @@ func TestAuth(t *testing.T) {
 	if strings.Contains(cookie.Value, token) {
 		t.Fatal("the cookie holds the token")
 	}
-	if rec := do(h, "GET", "/api/items", "", false, "Cookie", cookie.Name+"="+cookie.Value); rec.Code != http.StatusOK {
+	if rec := do(h, "GET", "/api/sources", "", false, "Cookie", cookie.Name+"="+cookie.Value); rec.Code != http.StatusOK {
 		t.Fatalf("with the cookie: %d", rec.Code)
 	}
 }
 
 func TestCrossOriginRefused(t *testing.T) {
 	h := newServer(t)
-	rec := do(h, "POST", "/api/items", `{"title":"x"}`, true, "Origin", "https://evil.example")
+	rec := do(h, "POST", "/api/session", `{"token":"x"}`, true, "Origin", "https://evil.example")
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("got %d", rec.Code)
-	}
-}
-
-func TestItems(t *testing.T) {
-	h := newServer(t)
-	if rec := do(h, "POST", "/api/items", `{"title":"  "}`, true); rec.Code != http.StatusBadRequest {
-		t.Fatalf("blank title: %d", rec.Code)
-	}
-	rec := do(h, "POST", "/api/items", `{"title":"Milk","note":"oat"}`, true)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("create: %d %s", rec.Code, rec.Body)
-	}
-	var it store.Item
-	json.NewDecoder(rec.Body).Decode(&it)
-	if it.ID == 0 || it.Title != "Milk" {
-		t.Fatalf("created %+v", it)
-	}
-
-	if rec := do(h, "PUT", "/api/items/1", `{"title":"Milk","done":true}`, true); rec.Code != http.StatusOK {
-		t.Fatalf("update: %d %s", rec.Code, rec.Body)
-	}
-	if rec := do(h, "PUT", "/api/items/99", `{"title":"Nope"}`, true); rec.Code != http.StatusNotFound {
-		t.Fatalf("update missing: %d", rec.Code)
-	}
-
-	rec = do(h, "GET", "/api/foyer/widget", "", true)
-	var widget foyerWidget
-	json.NewDecoder(rec.Body).Decode(&widget)
-	if widget.Version != 1 || widget.Stats[1].Value != "1" || len(widget.Items) != 0 {
-		t.Fatalf("widget %+v", widget)
-	}
-
-	if rec := do(h, "DELETE", "/api/items/1", "", true); rec.Code != http.StatusNoContent {
-		t.Fatalf("delete: %d", rec.Code)
-	}
-	if rec := do(h, "DELETE", "/api/items/1", "", true); rec.Code != http.StatusNotFound {
-		t.Fatalf("delete again: %d", rec.Code)
 	}
 }
 
