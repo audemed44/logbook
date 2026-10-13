@@ -1,18 +1,18 @@
-# Skeleton: TODO one line on what it does.
+# Logbook: Every homelab container's logs in one place: search, follow a request, alert on error bursts, with hard storage limits.
 services:
-  skeleton:
-    image: ghcr.io/audemed44/skeleton:latest
-    container_name: skeleton
+  logbook:
+    image: ghcr.io/audemed44/logbook:latest
+    container_name: logbook
     restart: unless-stopped
     user: "1000:1000"
     environment:
       # openssl rand -hex 32; what you sign in with, and Foyer's widget key.
-      - SKELETON_TOKEN=${SKELETON_TOKEN}
+      - LOGBOOK_TOKEN=${LOGBOOK_TOKEN}
       - TZ=Asia/Kolkata
       # Optional: Foyer's address, linked from the header.
       # - HOMEPAGE_URL=https://home.example.com
     volumes:
-      - ./skeleton:/data
+      - ./logbook:/data
     ports:
-      - "8089:8080"
+      - "8092:8080"
     mem_limit: 64m

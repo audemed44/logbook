@@ -1,8 +1,6 @@
-# Skeleton
+# Logbook
 
-> The homelab app template: see [TEMPLATE.md](TEMPLATE.md).
-
-TODO one line on what it does.
+Every homelab container's logs in one place: search, follow a request, alert on error bursts, with hard storage limits.
 
 One small Go binary with the web UI built in, data in SQLite.
 
@@ -10,47 +8,47 @@ One small Go binary with the web UI built in, data in SQLite.
 
 ```yaml
 services:
-  skeleton:
-    image: ghcr.io/audemed44/skeleton:latest
+  logbook:
+    image: ghcr.io/audemed44/logbook:latest
     restart: unless-stopped
     user: "1000:1000"
     environment:
-      - SKELETON_TOKEN=${SKELETON_TOKEN} # openssl rand -hex 32
+      - LOGBOOK_TOKEN=${LOGBOOK_TOKEN} # openssl rand -hex 32
     volumes:
-      - ./skeleton:/data
+      - ./logbook:/data
     ports:
-      - "8089:8080"
+      - "8092:8080"
 ```
 
 See [docker-compose.example.yml](docker-compose.example.yml) for every option.
 
 | Variable | Default | |
 |---|---|---|
-| `SKELETON_TOKEN` | (required) | What you sign in with; also Foyer's widget key |
-| `SKELETON_DATA_DIR` | `/data` | Where the database lives |
-| `SKELETON_PORT` | `8080` | Port inside the container |
+| `LOGBOOK_TOKEN` | (required) | What you sign in with; also Foyer's widget key |
+| `LOGBOOK_DATA_DIR` | `/data` | Where the database lives |
+| `LOGBOOK_PORT` | `8080` | Port inside the container |
 | `HOMEPAGE_URL` | | Foyer's address, linked from the header |
-| `SKELETON_DEBUG` | | Set to log debug messages |
+| `LOGBOOK_DEBUG` | | Set to log debug messages |
 
 ## Foyer
 
-Skeleton serves a [Foyer](https://github.com/audemed44/foyer) card at
+Logbook serves a [Foyer](https://github.com/audemed44/foyer) card at
 `/api/foyer/widget`:
 
 ```yaml
-      - name: Skeleton
-        url: https://skeleton.example.com
-        container: skeleton
+      - name: Logbook
+        url: https://logbook.example.com
+        container: logbook
         widget:
           type: app
-          url: http://skeleton:8080/api/foyer/widget
-          key: ${SKELETON_TOKEN}
+          url: http://logbook:8080/api/foyer/widget
+          key: ${LOGBOOK_TOKEN}
 ```
 
 ## Development
 
 ```sh
 cd frontend && npm install && npm run build && cd ..
-SKELETON_TOKEN=dev SKELETON_DATA_DIR=./data go run ./cmd/skeleton
+LOGBOOK_TOKEN=dev LOGBOOK_DATA_DIR=./data go run ./cmd/logbook
 # or, with hot reload: run the binary, then `npm run dev` in frontend/
 ```

@@ -1,4 +1,4 @@
-module github.com/audemed44/skeleton
+module github.com/audemed44/logbook
 
 go 1.26.0
 

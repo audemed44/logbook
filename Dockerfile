@@ -15,20 +15,20 @@ COPY cmd/ cmd/
 COPY internal/ internal/
 COPY web/embed.go web/
 COPY --from=frontend /src/web/dist web/dist
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /skeleton ./cmd/skeleton
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /logbook ./cmd/logbook
 
 # ── Runtime ─────────────────────────────────────────────────────────────────
 FROM alpine:3.23
 RUN apk add --no-cache ca-certificates \
-    && adduser -D -H -u 1000 -s /sbin/nologin skeleton \
+    && adduser -D -H -u 1000 -s /sbin/nologin logbook \
     && mkdir -p /data && chown 1000:1000 /data
-# In PATH, so `docker exec skeleton skeleton <command>` works.
-COPY --from=server /skeleton /usr/local/bin/skeleton
-ENV SKELETON_DATA_DIR=/data \
-    SKELETON_PORT=8080 \
+# In PATH, so `docker exec logbook logbook <command>` works.
+COPY --from=server /logbook /usr/local/bin/logbook
+ENV LOGBOOK_DATA_DIR=/data \
+    LOGBOOK_PORT=8080 \
     GOMEMLIMIT=32MiB
 USER 1000:1000
 EXPOSE 8080
 VOLUME ["/data"]
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s CMD ["skeleton", "healthcheck"]
-ENTRYPOINT ["skeleton"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s CMD ["logbook", "healthcheck"]
+ENTRYPOINT ["logbook"]

@@ -1,6 +1,6 @@
 {
-  "name": "Skeleton",
-  "short_name": "Skeleton",
+  "name": "Logbook",
+  "short_name": "Logbook",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
