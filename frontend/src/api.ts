@@ -1,4 +1,4 @@
-import type { Item, Session } from "./types";
+import type { Line, LinesPage, Overview, Session, Source } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -43,10 +43,11 @@ export const api = {
   login: (token: string) => request<Session>("/api/session", json("POST", { token })),
   logout: () => request<void>("/api/session", { method: "DELETE" }),
 
-  items: () => request<Item[]>("/api/items"),
-  saveItem: (it: Partial<Item>) =>
-    it.id
-      ? request<Item>(`/api/items/${it.id}`, json("PUT", it))
-      : request<Item>("/api/items", json("POST", it)),
-  deleteItem: (id: number) => request<void>(`/api/items/${id}`, { method: "DELETE" }),
+  lines: (query: string) => request<LinesPage>(`/api/lines?${query}`),
+  around: (id: number) => request<Line[]>(`/api/lines/${id}/around`),
+  sources: () => request<Source[]>("/api/sources"),
+  overview: () => request<Overview>("/api/overview"),
 };
+
+/** The live tail's address for a filter query. */
+export const tailURL = (query: string) => `/api/tail?${query}`;
