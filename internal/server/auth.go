@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/audemed44/logbook/internal/logging"
 )
 
 // Every /api/ call needs the token: as a bearer token (Foyer, scripts) or
@@ -91,6 +93,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !equal(strings.TrimSpace(body.Token), s.Token) {
+		logging.Audit(r.Context(), "session.refused")
 		time.Sleep(500 * time.Millisecond) // slow down guessing
 		writeError(w, http.StatusUnauthorized, "wrong token")
 		return
@@ -100,6 +103,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		MaxAge: 365 * 24 * 3600, HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 	})
+	logging.Audit(r.Context(), "session.signin")
 	writeJSON(w, http.StatusOK, sessionInfo{Authenticated: true, FoyerURL: s.FoyerURL})
 }
 
