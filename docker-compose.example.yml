@@ -1,18 +1,45 @@
-# Logbook: Every homelab container's logs in one place: search, follow a request, alert on error bursts, with hard storage limits.
+# Logbook: every homelab container's logs in one place: search, follow a request, alert on error bursts, with hard storage limits.
 services:
   logbook:
     image: ghcr.io/audemed44/logbook:latest
     container_name: logbook
     restart: unless-stopped
     user: "1000:1000"
+    # The docker group's id on the host (stat -c %g /var/run/docker.sock),
+    # so Logbook can read the socket.
+    group_add: ["111"]
     environment:
       # openssl rand -hex 32; what you sign in with, and Foyer's widget key.
       - LOGBOOK_TOKEN=${LOGBOOK_TOKEN}
       - TZ=Asia/Kolkata
       # Optional: Foyer's address, linked from the header.
       # - HOMEPAGE_URL=https://home.example.com
+      # Optional: Logbook's own address, for links in alerts.
+      # - LOGBOOK_URL=https://logbook.example.com
+      # Optional: alerts (Apprise JSON, e.g. Lookout's /notify/<key>) and a
+      # heartbeat pinged every minute (e.g. Lookout's /ping/<token>).
+      # - LOGBOOK_NOTIFY_URL=http://lookout:8080/notify/logbook
+      # - LOGBOOK_HEARTBEAT_URL=http://lookout:8080/ping/<token>
+      # Limits; these are the defaults.
+      # - LOGBOOK_MAX_SIZE=256MB
+      # - LOGBOOK_RETENTION=30d
+      # - LOGBOOK_DAILY_QUOTA=20000
+      # - LOGBOOK_PER_MINUTE=600
+      # - LOGBOOK_PER_MESSAGE=30
+      # - LOGBOOK_MAX_LINE=8192
+      # - LOGBOOK_ALERT_ERRORS=10
+      # Containers to leave out, comma separated.
+      # - LOGBOOK_EXCLUDE=kopia
     volumes:
       - ./logbook:/data
+      # Logbook only reads: container lists, logs and events.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "8092:8080"
     mem_limit: 64m
+    # Cap Docker's copy of the logs: 3 files of 10 MB, oldest dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
