@@ -4,8 +4,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,8 +17,12 @@ import (
 	"time"
 	_ "time/tzdata" // the runtime image may have no zoneinfo; TZ needs this
 
+	"github.com/audemed44/logbook/internal/collect"
+	"github.com/audemed44/logbook/internal/docker"
+	"github.com/audemed44/logbook/internal/logging"
 	"github.com/audemed44/logbook/internal/server"
 	"github.com/audemed44/logbook/internal/store"
+	"github.com/audemed44/logbook/internal/watch"
 	"github.com/audemed44/logbook/web"
 )
 
@@ -31,11 +37,7 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		os.Exit(healthcheck())
 	}
-	level := slog.LevelInfo
-	if os.Getenv("LOGBOOK_DEBUG") != "" {
-		level = slog.LevelDebug
-	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	logging.Setup("logbook", os.Stderr)
 
 	token := os.Getenv("LOGBOOK_TOKEN")
 	if token == "" {
@@ -61,12 +63,42 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	app := server.New(server.Options{Store: db, Token: token, FoyerURL: foyerURL(), Web: dist})
+	cfg, err := loadConfig()
+	if err != nil {
+		slog.Error("bad configuration", "err", err)
+		os.Exit(1)
+	}
+	watcher := watch.New(db, watch.Config{
+		Retention: cfg.retention, MaxBytes: cfg.maxBytes, NotifyURL: os.Getenv("LOGBOOK_NOTIFY_URL"),
+		BurstErrors: cfg.burstErrors, HeartbeatURL: os.Getenv("LOGBOOK_HEARTBEAT_URL"), AppURL: os.Getenv("LOGBOOK_URL"),
+	})
+	collector := collect.New(docker.New(env("LOGBOOK_DOCKER_SOCKET", "/var/run/docker.sock")), db, collect.Config{
+		Limits: cfg.limits, MaxLine: cfg.maxLine, Backfill: cfg.backfill, Exclude: cfg.exclude,
+		OnQuota: func(source string, quota int) {
+			watcher.Notify(ctx, source+" hit its daily quota",
+				fmt.Sprintf("%d lines today: the rest of its lines are dropped until midnight.", quota), "warning")
+		},
+	})
+	go collector.Run(ctx)
+	go watcher.Run(ctx)
+
+	app := server.New(server.Options{
+		Store: db, Collector: collector, Watcher: watcher, Token: token, FoyerURL: foyerURL(), Web: dist,
+		Limits: server.Limits{
+			MaxBytes: cfg.maxBytes, RetentionDay: int(cfg.retention.Hours() / 24), DailyQuota: cfg.limits.DailyQuota,
+			PerMinute: cfg.limits.PerMinute, PerMessage: cfg.limits.PerMessage, MaxLine: cfg.maxLine,
+			BurstErrors: cfg.burstErrors, Notify: os.Getenv("LOGBOOK_NOTIFY_URL") != "",
+			Heartbeat: os.Getenv("LOGBOOK_HEARTBEAT_URL") != "", Excluded: os.Getenv("LOGBOOK_EXCLUDE"),
+		},
+	})
 
 	srv := &http.Server{
 		Addr:              ":" + env("LOGBOOK_PORT", "8080"),
 		Handler:           app.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+		ErrorLog:          logging.ServerErrorLog(),
+		// Requests end on shutdown too, so live tails let go.
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	go func() {
 		<-ctx.Done()
